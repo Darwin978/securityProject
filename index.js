@@ -49,15 +49,32 @@ app.get('/register', (req, res) => {
     QRCode.toDataURL(secret.otpauth_url, (err, dataUrl) => {
         if(err || !dataUrl)
             return reject(err)
+        res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Imagen Base64</title>
+    </head>
+    <body>
+      <img src="`+dataUrl+`">
+      <h2> secret: `+secret.otpauth_url+`</h2>
+
+    </body>
+    </html>
+  `)
         res.json({ secret: secret.base32, qrCode: dataUrl})
     });
-})
+
+    
+});
 
 
 app.post("/login", passport.authenticate('local', {failureRedirect:'/login'}), (req, res)=>{
     
     res.redirect('/dashboard')
-})
+});
 
 app.get("/validate/:token/:secret", (req, res) => {
     const { token, secret } = req.params;
@@ -67,7 +84,7 @@ app.get("/validate/:token/:secret", (req, res) => {
         token
     });
     res.json( tokenValidates );
-})
+});
 
 app.post('/createUser', async (req, res) => {
     const user = new UserDb({
