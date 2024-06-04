@@ -6,6 +6,7 @@ const bodyParser = require('body-parser');
 const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
 const UserDb = require('./mondodb.js')
+const { check, validationResult } = require('express-validator');
 
 const app = express();
 
@@ -59,12 +60,11 @@ app.get('/register', (req, res) => {
     </head>
     <body>
       <img src="`+dataUrl+`">
-      <h2> secret: `+secret.otpauth_url+`</h2>
+      <h2> secret: `+secret.base32+`</h2>
 
     </body>
     </html>
   `)
-        res.json({ secret: secret.base32, qrCode: dataUrl})
     });
 
     
@@ -78,12 +78,21 @@ app.post("/login", passport.authenticate('local', {failureRedirect:'/login'}), (
 
 app.get("/validate/:token/:secret", (req, res) => {
     const { token, secret } = req.params;
-    const tokenValidates = speakeasy.totp.verify({
-        secret,
-        encoding: 'base64',
-        token
-    });
-    res.json( tokenValidates );
+
+    try {
+        const tokenValidates = speakeasy.totp.verify({
+            secret,
+            encoding: 'base32',  // Verifica si tu secreto está en base32.
+            token
+        });
+
+        res.json({ valid: tokenValidates });
+    } catch (error) {
+        // Manejo de errores adecuado para evitar el envío de múltiples respuestas.
+        if (!res.headersSent) {
+            res.status(400).json({ error: 'Invalid token or secret' });
+        }
+    }
 });
 
 app.post('/createUser', async (req, res) => {
@@ -97,5 +106,24 @@ app.post('/createUser', async (req, res) => {
     res.status(201).json(newUser);
     } catch (err) {
     res.status(400).json({ message: err.message });
+    }
+});
+
+// STEP 6
+app.post("/register2.0", [
+    check("username").isAlphanumeric().withMessage("Username must be alphanumeric"),
+    check("password").isLength({ min: 6 }).withMessage("Password must be at least 6 characters long"),
+    check("email").isEmail().withMessage("Must be a valid email"),
+], async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+    try {
+        const user = new UserDb(req.body);
+        await user.save();
+        res.status(201).json(user);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
     }
 });
